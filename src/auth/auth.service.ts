@@ -14,11 +14,9 @@ export class AuthService {
     private config: ConfigService,
   ) {}
 
-  async signin(dto: AuthDto) {
+  async register(dto: AuthDto): Promise<{ access_token: string }> {
     const hash = await argon.hash(dto.password);
     try {
-      console.log(dto);
-
       const user = await this.prisma.user.create({
         data: {
           email: dto.email,
@@ -26,10 +24,9 @@ export class AuthService {
         },
       });
 
-      return await this.signToken(user.id, user.email);
+      return await this.signToken({ userId: user.id, email: user.email });
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
-        console.log(error.code);
         if (error.code === 'P2002') {
           throw new ForbiddenException('Credentials taken');
         }
@@ -38,7 +35,7 @@ export class AuthService {
     }
   }
 
-  async signup(dto: AuthDto) {
+  async login(dto: AuthDto): Promise<{ access_token: string }> {
     const user = await this.prisma.user.findUnique({
       where: {
         email: dto.email,
@@ -51,13 +48,16 @@ export class AuthService {
 
     if (!isMatched) throw new ForbiddenException('Credentials Incorrect!');
 
-    return await this.signToken(user.id, user.email);
+    return await this.signToken({ userId: user.id, email: user.email });
   }
 
-  async signToken(
-    userId: number,
-    email: string,
-  ): Promise<{ access_token: string }> {
+  async signToken({
+    userId,
+    email,
+  }: {
+    userId: number;
+    email: string;
+  }): Promise<{ access_token: string }> {
     const payload = {
       sub: userId,
       email,
